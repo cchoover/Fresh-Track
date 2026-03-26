@@ -30,7 +30,8 @@ const GROCERY_STORES = [
   { id: "walmart", name: "Walmart", icon: "🛒", color: "#0071CE", connected: false, desc: "Walmart Grocery & Walmart+" },
   { id: "instacart", name: "Instacart", icon: "🥕", color: "#43B02A", connected: false, desc: "Costco, Aldi, Sprouts & 500+ stores" },
   { id: "target", name: "Target", icon: "🎯", color: "#CC0000", connected: false, desc: "Target same-day delivery & pickup" },
-  { id: "wholefds", name: "Whole Foods", icon: "🌿", color: "#00674B", connected: false, desc: "Amazon Fresh & Whole Foods Market" },
+  { id: "wholefds", name: "Whole Foods", icon: "🌿", color: "#00674B", connected: false, desc: "Whole Foods Market stores & delivery" },
+  { id: "amazon", name: "Amazon Fresh", icon: "📦", color: "#FF9900", connected: false, desc: "Amazon Prime grocery & Fresh delivery" },
 ];
 
 // USDA FoodKeeper-inspired shelf life database (days)
