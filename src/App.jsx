@@ -400,7 +400,7 @@ export default function FreshTrack() {
 
           {step.input && (
             <input autoFocus value={userName} onChange={e => setUserName(e.target.value)} placeholder="Your first name"
-              style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid #D6D3D1", fontSize: 16, textAlign: "center", outline: "none", marginBottom: 16, background: "#fff" }} />
+              style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: "1px solid #D6D3D1", fontSize: 16, textAlign: "center", outline: "none", marginBottom: 16, background: "#fff", color: "#292524" }} />
           )}
 
           {step.stores && (
