@@ -405,7 +405,7 @@ export default function FreshTrack() {
 
           {step.stores && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {stores.slice(0, 4).map(s => (
+              {stores.map(s => (
                 <button key={s.id} onClick={() => connectStore(s.id)} className="btn" style={{
                   display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
                   background: s.connected ? "#F0FDF4" : "#fff", borderRadius: 14,
