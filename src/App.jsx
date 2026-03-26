@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import { findRecipes, getRecipeDetails } from "./spoonacular";
 
+import { getKrogerLoginUrl, exchangeCodeForToken, getClientToken, searchProducts } from './krogerService'
+
 /* ───────────────────────── DATA LAYER ───────────────────────── */
 const STORAGE_METHODS = {
   fridge: { icon: "❄️", label: "Fridge", multiplier: 1 },
@@ -234,15 +236,92 @@ export default function FreshTrack() {
     setTimeout(() => setToast(null), 2800);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      exchangeCodeForToken(code).then(token => {
+        if (token) {
+          localStorage.setItem('kroger_token', token)
+          window.history.replaceState({}, '', '/')
+          showToast('Kroger account connected!')
+          setStores(prev => prev.map(s => s.id === 'kroger' ? { ...s, connected: true } : s))
+        }
+      }).catch(() => {
+        showToast('Kroger connection failed', 'error')
+      })
+    }
+  }, [])
+
   const connectStore = (storeId) => {
     setStores(prev => prev.map(s => s.id === storeId ? { ...s, connected: !s.connected } : s));
     const store = stores.find(s => s.id === storeId);
     showToast(store.connected ? `${store.name} disconnected` : `${store.name} connected!`);
   };
 
-  const simulateSync = (storeId) => {
+  const simulateSync = async (storeId) => {
     setSyncing(true);
     setSyncStore(storeId);
+
+    if (storeId === "kroger") {
+      try {
+        const normalize = (s) =>
+          String(s || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const token = await getClientToken();
+
+        // Use your pantry items (if any) as search terms; otherwise fall back to the dataset.
+        const termSource = items.length > 0 ? items : FOOD_DB.slice(0, 12);
+        const terms = Array.from(new Set(termSource.map(t => t.name).filter(Boolean))).slice(0, 8);
+
+        const matchedDbByName = new Map();
+        for (const term of terms) {
+          const products = await searchProducts(term, token);
+          for (const prod of (products || [])) {
+            const p = prod?.product || prod;
+            const productName = p?.description || p?.name || p?.title || p?.brandName || "";
+            const productNameNorm = normalize(productName);
+            if (!productNameNorm) continue;
+
+            const bestDb = FOOD_DB.find(db => {
+              const dbNorm = normalize(db.name);
+              if (!dbNorm) return false;
+              return productNameNorm.includes(dbNorm) || dbNorm.includes(productNameNorm);
+            });
+
+            if (bestDb) matchedDbByName.set(bestDb.name, bestDb);
+          }
+        }
+
+        const newItems = Array.from(matchedDbByName.values())
+          .filter(db => !items.find(i => i.name === db.name))
+          .slice(0, 14)
+          .map(db => ({
+            ...db,
+            purchaseDate: daysAgo(Math.floor(Math.random() * 5)),
+            qty: 1 + Math.floor(Math.random() * 2),
+            storage: db.defaultStorage,
+            id: crypto.randomUUID(),
+            addedBy: "me",
+            userAdjusted: false,
+          }));
+
+        setItems(prev => [...prev, ...newItems]);
+        showToast(`${newItems.length} items synced from Kroger`);
+      } catch (error) {
+        console.log("Kroger sync failed:", error);
+        showToast("Kroger sync failed", "error");
+      } finally {
+        setSyncing(false);
+        setSyncStore(null);
+      }
+      return;
+    }
+
     setTimeout(() => {
       const picks = [];
       const indices = [0,1,2,5,6,7,8,9,10,11,12,14,16,17,18,19,21,23,24,27,29,30,32,33,39,40];
@@ -266,6 +345,10 @@ export default function FreshTrack() {
       showToast(`${picks.length} items synced from ${stores.find(s => s.id === storeId)?.name || "store"}`);
     }, 2400);
   };
+
+  const connectKroger = () => {
+    window.location.href = getKrogerLoginUrl()
+  }
 
   const simulateReceiptScan = () => {
     setReceiptScanning(true);
@@ -555,7 +638,7 @@ export default function FreshTrack() {
                 <p style={{ color: "#78716C", fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>Sync a store, scan a receipt, or add items manually.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {connectedStores.length > 0 ? connectedStores.map(s => (
-                    <button key={s.id} onClick={() => simulateSync(s.id)} disabled={syncing} className="btn" style={{
+                    <button key={s.id} onClick={() => s.id === 'kroger' && !s.connected ? connectKroger() : simulateSync(s.id)} disabled={syncing} className="btn" style={{
                       width: "100%", padding: "14px", borderRadius: 14, fontSize: 14, fontWeight: 600, color: "#fff",
                       background: `linear-gradient(135deg, ${G}, ${GL})`, boxShadow: `0 4px 14px rgba(27,67,50,0.2)`,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -592,7 +675,7 @@ export default function FreshTrack() {
                 {connectedStores.length > 0 && (
                   <div style={{ display: "flex", gap: 6, marginBottom: 10, overflowX: "auto" }}>
                     {connectedStores.map(s => (
-                      <button key={s.id} onClick={() => simulateSync(s.id)} disabled={syncing} className="btn" style={{
+                      <button key={s.id} onClick={() => s.id === 'kroger' && !s.connected ? connectKroger() : simulateSync(s.id)} disabled={syncing} className="btn" style={{
                         padding: "7px 14px", borderRadius: 10, fontSize: 12, fontWeight: 500,
                         background: "#fff", border: "1px solid #E7E5E4", color: "#44403C",
                         display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
