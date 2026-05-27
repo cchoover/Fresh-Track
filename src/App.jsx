@@ -532,6 +532,9 @@ const [loadingAuth, setLoadingAuth] = useState(true);
   const connectedStores = stores.filter(s => s.connected);
   const expiringToday = items.filter(i => getDaysLeft(i.purchaseDate, i.shelfLife, i.storage) <= 1 && getDaysLeft(i.purchaseDate, i.shelfLife, i.storage) >= 0);
 
+  if (loadingAuth) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", color: "#78716C" }}>Loading...</div>;
+  if (!session) return <Auth />;
+
   /* ── STYLES ── */
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&display=swap');
@@ -559,11 +562,7 @@ const [loadingAuth, setLoadingAuth] = useState(true);
   const G = "#1B4332";
   const GL = "#2D6A4F";
 
- 
   /* ── ONBOARDING ── */
-  if (loadingAuth) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", color: "#78716C" }}>Loading...</div>;
-  if (!session) return <Auth />;
-
   if (screen === "onboarding") {
     const steps = [
       { title: "Welcome to\nFresh Track", sub: "Your smart pantry companion.\nTrack groceries, reduce waste, eat better.", emoji: "🌿", action: "Get Started" },
