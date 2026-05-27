@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
+import { supabase } from "./supabaseClient";
+import Auth from "./Auth";
+
 import { findRecipes, getRecipeDetails } from "./spoonacular";
 
 import { getKrogerLoginUrl, exchangeCodeForToken, getClientToken, searchProducts } from './krogerService'
@@ -189,6 +192,9 @@ export default function FreshTrack() {
   const [wasteStats, setWasteStats] = useState({ saved: 23, wasted: 4, money: 18.50 });
   const [mealFilter, setMealFilter] = useState("all");
 
+  const [session, setSession] = useState(null);
+const [loadingAuth, setLoadingAuth] = useState(true);
+
   const [apiMeals, setApiMeals] = useState([]);
 
   const fetchMeals = async () => {
@@ -225,6 +231,67 @@ export default function FreshTrack() {
     }
   }
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+  
+    // Load pantry items
+    supabase
+      .from("pantry_items")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const mapped = data.map(row => {
+            const dbEntry = FOOD_DB.find(d => d.name === row.name) || {};
+            return {
+              ...dbEntry,
+              id: row.id,
+              name: row.name,
+              category: row.category,
+              purchaseDate: row.purchase_date,
+              storage: row.storage || dbEntry.defaultStorage,
+              shelfLife: row.shelf_life || dbEntry.shelfLife,
+              price: row.price || dbEntry.price,
+              calories: row.calories || dbEntry.calories,
+              protein: row.protein || dbEntry.protein,
+              nutrients: row.nutrients || dbEntry.nutrients,
+              qty: row.qty || 1,
+              userAdjusted: row.user_adjusted || false,
+              addedBy: "me",
+            };
+          });
+          setItems(mapped);
+          setScreen("app");
+        }
+      });
+  
+    // Load restock list
+    supabase
+      .from("restock_list")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const mapped = data.map(row => {
+            const dbEntry = FOOD_DB.find(d => d.name === row.name) || {};
+            return { ...dbEntry, ...row };
+          });
+          setRepurchaseList(mapped);
+        }
+      });
+  }, [session]);
+  
   useEffect(() => {
     if (items.length > 0) {
       fetchMeals()
@@ -366,13 +433,32 @@ export default function FreshTrack() {
     }, 2800);
   };
 
-  const addItem = (dbItem) => {
+  const addItem = async (dbItem) => {
     const newItem = {
-      ...dbItem, purchaseDate: new Date().toISOString(),
-      qty: 1, storage: dbItem.defaultStorage,
-      id: crypto.randomUUID(), addedBy: "me", userAdjusted: false,
+      ...dbItem,
+      purchaseDate: new Date().toISOString(),
+      qty: 1,
+      storage: dbItem.defaultStorage,
+      id: crypto.randomUUID(),
+      addedBy: "me",
+      userAdjusted: false,
     };
-    setItems(prev => [...prev, newItem]);
+    const { error } = await supabase.from("pantry_items").insert({
+      id: newItem.id,
+      user_id: session.user.id,
+      name: newItem.name,
+      category: newItem.category,
+      purchase_date: newItem.purchaseDate,
+      storage: newItem.storage,
+      shelf_life: newItem.shelfLife,
+      price: newItem.price,
+      calories: newItem.calories,
+      protein: newItem.protein,
+      nutrients: newItem.nutrients,
+      qty: newItem.qty,
+      user_adjusted: newItem.userAdjusted,
+    });
+    if (!error) setItems(prev => [...prev, newItem]);
     setShowAddModal(false);
     setAddSearch("");
     showToast(`${dbItem.name} added`);
@@ -390,22 +476,31 @@ export default function FreshTrack() {
     if (item) showToast(`${item.name} removed`);
   };
 
-  const changeStorage = (id, newStorage) => {
+  const changeStorage = async (id, newStorage) => {
+    await supabase.from("pantry_items").update({ storage: newStorage, user_adjusted: true }).eq("id", id);
     setItems(prev => prev.map(i => i.id === id ? { ...i, storage: newStorage, userAdjusted: true } : i));
-    showToast(`Storage updated`);
+    showToast("Storage updated");
   };
 
-  const addToRepurchase = (item) => {
+  const addToRepurchase = async (item) => {
     if (!repurchaseList.find(r => r.name === item.name)) {
+      await supabase.from("restock_list").insert({
+        user_id: session.user.id,
+        name: item.name,
+        category: item.category,
+        price: item.price,
+        unit: item.unit,
+      });
       setRepurchaseList(prev => [...prev, item]);
       showToast(`${item.name} → restock list`);
     }
   };
 
-  const repurchaseItem = (rItem) => {
+  const repurchaseItem = async (rItem) => {
     const dbItem = FOOD_DB.find(d => d.name === rItem.name);
     if (dbItem) {
       addItem(dbItem);
+      await supabase.from("restock_list").delete().eq("name", rItem.name).eq("user_id", session.user.id);
       setRepurchaseList(prev => prev.filter(r => r.name !== rItem.name));
     }
   };
@@ -464,7 +559,11 @@ export default function FreshTrack() {
   const G = "#1B4332";
   const GL = "#2D6A4F";
 
+ 
   /* ── ONBOARDING ── */
+  if (loadingAuth) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", color: "#78716C" }}>Loading...</div>;
+  if (!session) return <Auth />;
+
   if (screen === "onboarding") {
     const steps = [
       { title: "Welcome to\nFresh Track", sub: "Your smart pantry companion.\nTrack groceries, reduce waste, eat better.", emoji: "🌿", action: "Get Started" },
@@ -882,7 +981,10 @@ export default function FreshTrack() {
                           </div>
                           <div style={{ display: "flex", gap: 5 }}>
                             <button onClick={() => repurchaseItem(item)} className="btn" style={{ background: G, color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 600 }}>Buy</button>
-                            <button onClick={() => setRepurchaseList(p => p.filter(r => r.name !== item.name))} className="btn" style={{ background: "#F5F5F4", color: "#78716C", borderRadius: 8, padding: "6px 8px", fontSize: 13 }}>✕</button>
+                            <button onClick={async () => {
+                              await supabase.from("restock_list").delete().eq("name", item.name).eq("user_id", session.user.id);
+                              setRepurchaseList(p => p.filter(r => r.name !== item.name));
+                            }} className="btn" style={{ background: "#F5F5F4", color: "#78716C", borderRadius: 8, padding: "6px 8px", fontSize: 13 }}>✕</button>
                           </div>
                         </div>
                       </div>
@@ -963,7 +1065,9 @@ export default function FreshTrack() {
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>😊</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: "#292524" }}>{userName || "User"}</div>
-                  <div style={{ fontSize: 12, color: "#78716C" }}>Admin · Free Plan</div>
+                  <div style={{ fontSize: 12, color: "#78716C" }}>{session.user.email}<button onClick={() => supabase.auth.signOut()} className="btn" style={{ padding: "6px 14px", borderRadius: 8, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600 }}>
+      Log Out
+    </button></div>
                 </div>
               </div>
             </div>
