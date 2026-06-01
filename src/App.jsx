@@ -377,6 +377,24 @@ const [loadingAuth, setLoadingAuth] = useState(true);
             userAdjusted: false,
           }));
 
+        if (newItems.length > 0) {
+          const rows = newItems.map(item => ({
+            id: item.id,
+            user_id: session.user.id,
+            name: item.name,
+            category: item.category,
+            purchase_date: item.purchaseDate,
+            storage: item.storage,
+            shelf_life: item.shelfLife,
+            price: item.price,
+            calories: item.calories,
+            protein: item.protein,
+            nutrients: item.nutrients,
+            qty: item.qty,
+            user_adjusted: item.userAdjusted,
+          }));
+          await supabase.from("pantry_items").insert(rows);
+        }
         setItems(prev => [...prev, ...newItems]);
         showToast(`${newItems.length} items synced from Kroger`);
       } catch (error) {
@@ -389,7 +407,7 @@ const [loadingAuth, setLoadingAuth] = useState(true);
       return;
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const picks = [];
       const indices = [0,1,2,5,6,7,8,9,10,11,12,14,16,17,18,19,21,23,24,27,29,30,32,33,39,40];
       const shuffled = indices.sort(() => Math.random() - 0.5).slice(0, 14 + Math.floor(Math.random() * 6));
@@ -406,6 +424,24 @@ const [loadingAuth, setLoadingAuth] = useState(true);
           });
         }
       });
+      if (picks.length > 0) {
+        const rows = picks.map(item => ({
+          id: item.id,
+          user_id: session.user.id,
+          name: item.name,
+          category: item.category,
+          purchase_date: item.purchaseDate,
+          storage: item.storage,
+          shelf_life: item.shelfLife,
+          price: item.price,
+          calories: item.calories,
+          protein: item.protein,
+          nutrients: item.nutrients,
+          qty: item.qty,
+          user_adjusted: item.userAdjusted,
+        }));
+        await supabase.from("pantry_items").insert(rows);
+      }
       setItems(prev => [...prev, ...picks]);
       setSyncing(false);
       setSyncStore(null);
@@ -419,13 +455,31 @@ const [loadingAuth, setLoadingAuth] = useState(true);
 
   const simulateReceiptScan = () => {
     setReceiptScanning(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       const receiptItems = [0,7,10,17,23,27,32].filter(idx => !items.find(i => i.name === FOOD_DB[idx].name));
       const newItems = receiptItems.map(idx => ({
         ...FOOD_DB[idx], purchaseDate: new Date().toISOString(),
         qty: 1, storage: FOOD_DB[idx].defaultStorage,
         id: crypto.randomUUID(), addedBy: "me", userAdjusted: false,
       }));
+      if (newItems.length > 0) {
+        const rows = newItems.map(item => ({
+          id: item.id,
+          user_id: session.user.id,
+          name: item.name,
+          category: item.category,
+          purchase_date: item.purchaseDate,
+          storage: item.storage,
+          shelf_life: item.shelfLife,
+          price: item.price,
+          calories: item.calories,
+          protein: item.protein,
+          nutrients: item.nutrients,
+          qty: item.qty,
+          user_adjusted: item.userAdjusted,
+        }));
+        await supabase.from("pantry_items").insert(rows);
+      }
       setItems(prev => [...prev, ...newItems]);
       setReceiptScanning(false);
       setShowReceipt(false);
