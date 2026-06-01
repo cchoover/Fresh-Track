@@ -1,26 +1,27 @@
 const KROGER_CLIENT_ID = 'freshtrack-bbcdq7cc'
 const REDIRECT_URI = 'https://fresh-track-theta.vercel.app/callback'
+const SUPABASE_URL = 'https://thooshgduqnekcogewhv.supabase.co'
 
 export function getKrogerLoginUrl() {
   return `https://api.kroger.com/v1/connect/oauth2/authorize?scope=profile.compact&client_id=${KROGER_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code`
 }
 
 export async function getClientToken() {
-  const response = await fetch('/api/kroger-token')
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/kroger-token`)
   const data = await response.json()
   return data.access_token
 }
 
 export async function exchangeCodeForToken(code) {
   const response = await fetch(
-    `/api/kroger-token?code=${code}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+    `${SUPABASE_URL}/functions/v1/kroger-token?code=${code}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
   )
   const data = await response.json()
   return data.access_token
 }
 
 export async function searchProducts(term, token, locationId) {
-  let url = `/api/kroger-products?term=${encodeURIComponent(term)}&token=${token}`
+  let url = `${SUPABASE_URL}/functions/v1/kroger-products?term=${encodeURIComponent(term)}&token=${token}`
   if (locationId) {
     url += `&locationId=${locationId}`
   }
@@ -31,7 +32,7 @@ export async function searchProducts(term, token, locationId) {
 
 export async function findStores(zipCode, token) {
   const response = await fetch(
-    `/api/kroger-locations?zipCode=${zipCode}&token=${token}`
+    `${SUPABASE_URL}/functions/v1/kroger-locations?zipCode=${zipCode}&token=${token}`
   )
   const data = await response.json()
   return data.data || []
